@@ -19,6 +19,7 @@ const { fetchConfiguredLocalOriginWithSsrFGuardMock } = vi.hoisted(() => ({
   ),
 }));
 
+// mock-isolation: embedding tests must not reach the real network fetch guard
 vi.mock("openclaw/plugin-sdk/ssrf-runtime", () => ({
   fetchWithSsrFGuard: vi.fn(),
   formatErrorMessage: coerceErrorMessage,
@@ -28,6 +29,7 @@ vi.mock("openclaw/plugin-sdk/ssrf-runtime", () => ({
   },
 }));
 
+// mock-isolation: embedding tests must not reach the real configured-origin helper
 vi.mock("openclaw/plugin-sdk/ssrf-runtime-internal", () => ({
   fetchConfiguredLocalOriginWithSsrFGuard: fetchConfiguredLocalOriginWithSsrFGuardMock,
 }));

@@ -261,8 +261,7 @@ function isPodmanHostGatewayBaseUrl(baseUrl: string): boolean {
   // container host gateway. Any other provider-owned host keeps exact-origin
   // trust without link-local access.
   return (
-    URL.parse(baseUrl)?.hostname.toLowerCase().replace(/\.+$/, "") ===
-    "host.containers.internal"
+    URL.parse(baseUrl)?.hostname.toLowerCase().replace(/\.+$/, "") === "host.containers.internal"
   );
 }
 

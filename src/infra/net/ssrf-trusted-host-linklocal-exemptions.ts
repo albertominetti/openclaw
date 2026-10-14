@@ -1,5 +1,3 @@
-import type { SsrFPolicy } from "./ssrf.js";
-
 // Host-granted exemption for the rootless-Podman container host gateway
 // (host.containers.internal -> 169.254.1.2, link-local 169.254.0.0/16).
 // Keyed by policy identity instead of a policy field so the Plugin SDK
@@ -8,7 +6,11 @@ import type { SsrFPolicy } from "./ssrf.js";
 // Distinct from PR #149589's nonzero 0.0.0.0/8 exemption: that range and this
 // link-local gateway range are disjoint, and each keeps its own WeakSet so the
 // two opt-ins merge additively instead of overwriting each other.
-const podmanGatewayLinkLocalExemptPolicies = new WeakSet<SsrFPolicy>();
+//
+// This module intentionally imports nothing from ssrf.ts: ssrf.ts imports the
+// helpers back, so even a type-only import would close an import cycle.
+// The helpers are generic over the policy object shape instead.
+const podmanGatewayLinkLocalExemptPolicies = new WeakSet<object>();
 
 /**
  * Copy a policy whose trusted hostname may resolve into the Podman host
@@ -17,14 +19,12 @@ const podmanGatewayLinkLocalExemptPolicies = new WeakSet<SsrFPolicy>();
  * (see resolveConfiguredLocalOriginLinkLocalHopPolicy); the copy itself
  * carries no origin information.
  */
-export function withTrustedHostPodmanGatewayLinkLocalExemption(policy: SsrFPolicy): SsrFPolicy {
+export function withTrustedHostPodmanGatewayLinkLocalExemption<T extends object>(policy: T): T {
   const exempt = { ...policy };
   podmanGatewayLinkLocalExemptPolicies.add(exempt);
   return exempt;
 }
 
-export function hasTrustedHostPodmanGatewayLinkLocalExemption(
-  policy: SsrFPolicy | undefined,
-): boolean {
+export function hasTrustedHostPodmanGatewayLinkLocalExemption(policy: object | undefined): boolean {
   return policy !== undefined && podmanGatewayLinkLocalExemptPolicies.has(policy);
 }
