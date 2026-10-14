@@ -11,6 +11,7 @@ import {
 } from "../fetch-headers.js";
 import { cancelUnreadResponseBody } from "../http-body.js";
 import {
+  resolveConfiguredLocalOriginLinkLocalHopPolicy,
   shouldUseConfiguredLocalOriginManagedProxyBypass,
   shouldResolveConfiguredLocalOriginManagedProxyBypass,
   type ConfiguredLocalOriginManagedProxyBypass,
@@ -25,6 +26,7 @@ import {
   isMockedFetch,
   type DispatcherAwareRequestInit,
 } from "./runtime-fetch.js";
+import { hasTrustedHostPodmanGatewayLinkLocalExemption } from "./ssrf-trusted-host-linklocal-exemptions.js";
 import {
   assertHostnameAllowedWithPolicy,
   closeDispatcher,
@@ -129,6 +131,12 @@ type GuardedFetchInternalOptions = GuardedFetchOptions & {
 
 type GuardedFetchConfiguredLocalOriginOptions = GuardedFetchOptions & {
   configuredLocalOriginBaseUrl: string;
+  /**
+   * Let the exact configured origin's trusted hostname resolve into the
+   * rootless-Podman host gateway link-local address (169.254.1.2).
+   * No effect on other origins, redirects, or cloud metadata.
+   */
+  allowPodmanHostGatewayLinkLocal?: boolean;
 };
 
 type GuardedFetchPresetOptions = Omit<
@@ -401,6 +409,7 @@ export async function fetchWithSsrFGuard(params: GuardedFetchOptions): Promise<G
 
 export async function fetchConfiguredLocalOriginWithSsrFGuard({
   configuredLocalOriginBaseUrl,
+  allowPodmanHostGatewayLinkLocal,
   ...params
 }: GuardedFetchConfiguredLocalOriginOptions): Promise<GuardedFetchResult> {
   return await fetchWithSsrFGuardInternal({
@@ -408,6 +417,7 @@ export async function fetchConfiguredLocalOriginWithSsrFGuard({
     managedProxyBypass: {
       kind: "configured-local-origin",
       baseUrl: configuredLocalOriginBaseUrl,
+      ...(allowPodmanHostGatewayLinkLocal === true ? { allowPodmanHostGatewayLinkLocal } : {}),
     },
   });
 }
@@ -497,7 +507,12 @@ async function fetchWithSsrFGuardInternal(
       await (dispatcherLease ? dispatcherLease.release() : closeDispatcher(dispatcher));
     };
     // Resolve inside the redirect loop so exact-origin trust never carries across origins.
-    const policyForUrl = resolveSsrFPolicyForUrl(parsedUrl, params.policy);
+    // The link-local gateway exemption is applied per exact-origin hop on top.
+    const policyForUrl = resolveConfiguredLocalOriginLinkLocalHopPolicy({
+      url: parsedUrl,
+      policy: resolveSsrFPolicyForUrl(parsedUrl, params.policy),
+      managedProxyBypass: params.managedProxyBypass,
+    });
     const dispatcherPolicy = params.resolveDispatcherPolicy?.(parsedUrl) ?? params.dispatcherPolicy;
     const resolvePinnedHostname = async () =>
       await resolvePinnedHostnameWithPolicy(parsedUrl.hostname, {
@@ -605,6 +620,9 @@ async function fetchWithSsrFGuardInternal(
             streamTimeoutMs: timeoutMs ?? globalUndiciStreamTimeoutMs ?? null,
             familyConnect: familyConnect ?? null,
             policy: policyForUrl ?? null,
+            // Host exemptions live outside the policy's JSON shape.
+            podmanGatewayLinkLocalExempt:
+              hasTrustedHostPodmanGatewayLinkLocalExemption(policyForUrl),
           });
           dispatcherLease = params.dispatcherPool.acquire({
             key,

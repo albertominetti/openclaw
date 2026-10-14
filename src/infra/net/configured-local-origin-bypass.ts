@@ -1,15 +1,23 @@
 // Configured local-origin bypass logic decides when managed proxy routing may
-// skip proxying a known loopback provider origin.
+// skip proxying a known loopback provider origin, and which host-granted
+// address exemptions apply to that exact origin.
 import { isLoopbackIpAddress } from "@openclaw/net-policy/ip";
 import { normalizeHostname } from "./hostname.js";
 import { getActiveManagedProxyLoopbackMode } from "./proxy/active-proxy-state.js";
-import { SsrFBlockedError } from "./ssrf.js";
+import { withTrustedHostPodmanGatewayLinkLocalExemption } from "./ssrf-trusted-host-linklocal-exemptions.js";
+import { SsrFBlockedError, type SsrFPolicy } from "./ssrf.js";
 
 // Configured local-origin bypass allows managed proxy calls to skip proxying
 // only when config, DNS, and active loopback policy all prove a loopback target.
 export type ConfiguredLocalOriginManagedProxyBypass = {
   kind: "configured-local-origin";
   baseUrl: string;
+  /**
+   * Let this exact origin's trusted hostname resolve into the rootless-Podman
+   * host gateway link-local address (host.containers.internal -> 169.254.1.2).
+   * Applies per exact-origin hop only; cross-origin redirects get no exemption.
+   */
+  allowPodmanHostGatewayLinkLocal?: boolean;
 };
 
 function parseHttpUrl(value: string): URL | undefined {
@@ -63,4 +71,40 @@ export function shouldUseConfiguredLocalOriginManagedProxyBypass(params: {
     params.resolvedAddresses.length > 0 &&
     params.resolvedAddresses.every((address) => isLoopbackIpAddress(address))
   );
+}
+
+function resolveHttpOrigin(value: string): string | undefined {
+  try {
+    const parsed = new URL(value.trim());
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+    parsed.hostname = parsed.hostname.replace(/\.+$/, "");
+    return parsed.origin.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Apply the configured origin's Podman gateway link-local exemption only to a
+ * hop on that exact origin (scheme + host + port). Redirects to any other
+ * origin keep the unexempted policy, so cross-origin trust never carries.
+ * Named distinctly from PR #149589's unspecified-range resolver so both
+ * opt-ins compose additively when merged.
+ */
+export function resolveConfiguredLocalOriginLinkLocalHopPolicy(params: {
+  url: URL;
+  policy: SsrFPolicy | undefined;
+  managedProxyBypass: ConfiguredLocalOriginManagedProxyBypass | undefined;
+}): SsrFPolicy | undefined {
+  const { policy, managedProxyBypass } = params;
+  if (!policy || managedProxyBypass?.allowPodmanHostGatewayLinkLocal !== true) {
+    return policy;
+  }
+  const baseOrigin = resolveHttpOrigin(managedProxyBypass.baseUrl);
+  if (!baseOrigin || resolveHttpOrigin(params.url.toString()) !== baseOrigin) {
+    return policy;
+  }
+  return withTrustedHostPodmanGatewayLinkLocalExemption(policy);
 }
