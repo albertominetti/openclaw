@@ -69,15 +69,7 @@ export type OllamaEmbeddingClient = Omit<RemoteEmbeddingClient, "fetchImpl"> & {
   outputDimensionality?: number;
   localServiceTarget?: Parameters<MemoryCoreAcquireLocalService>[0];
   acquireLocalService?: MemoryCoreAcquireLocalService;
-  /**
-   * Host-only opt-in for the rootless-Podman gateway link-local address.
-   * True only for the demonstrated Podman host gateway
-   * (host.containers.internal) when the provider owns the embedding host
-   * (provider config, or a remote override equivalent to it). Any other
-   * provider-owned host and all separate remote hosts never opt in.
-   * Threaded as `allowPodmanHostGatewayLinkLocal` on the private
-   * fetchConfiguredLocalOriginWithSsrFGuard helper, never as a public policy.
-   */
+  /** Provider ownership permits the guard to check its narrow Podman origin exception. */
   allowPodmanHostGatewayLinkLocal?: boolean;
   embedBatch: (texts: string[]) => Promise<number[][]>;
 };
@@ -256,15 +248,6 @@ function areOllamaHostsEquivalent(a: string, b: string): boolean {
   return aKey !== undefined && bKey !== undefined && aKey === bKey;
 }
 
-function isPodmanHostGatewayBaseUrl(baseUrl: string): boolean {
-  // The link-local exemption exists only for the demonstrated rootless-Podman
-  // container host gateway. Any other provider-owned host keeps exact-origin
-  // trust without link-local access.
-  return (
-    URL.parse(baseUrl)?.hostname.toLowerCase().replace(/\.+$/, "") === "host.containers.internal"
-  );
-}
-
 function selectOllamaEmbeddingApiKey(params: {
   resolved: OllamaEmbeddingResolvedKeys;
   baseUrl: string;
@@ -346,13 +329,7 @@ async function resolveOllamaEmbeddingClient(
     baseUrl,
     headers,
     ssrfPolicy: ssrfPolicyFromHttpBaseUrlAllowedOrigin(baseUrl),
-    // Chat to this host already trusts private-network DNS via
-    // buildOllamaBaseUrlSsrFPolicy; embeddings gain only the narrower
-    // Podman gateway link-local exemption, and only for the provider-owned
-    // Podman host gateway. allowPrivateNetwork alone would still block
-    // link-local, and would also waive metadata protection, so it is not
-    // used here.
-    allowPodmanHostGatewayLinkLocal: providerOwnsHost && isPodmanHostGatewayBaseUrl(baseUrl),
+    allowPodmanHostGatewayLinkLocal: providerOwnsHost,
     model,
     outputDimensionality: options.dimensions,
     ...(localService && baseUrlOrigin !== "remote-config"
@@ -401,7 +378,7 @@ export async function createOllamaEmbeddingProvider(
         url: embedUrl,
         policy: client.ssrfPolicy,
         configuredLocalOriginBaseUrl: client.baseUrl,
-        allowPodmanHostGatewayLinkLocal: client.allowPodmanHostGatewayLinkLocal === true,
+        allowPodmanHostGatewayLinkLocal: client.allowPodmanHostGatewayLinkLocal,
         auditContext: "ollama-memory-embedding",
         signal,
         init: {

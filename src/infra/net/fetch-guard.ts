@@ -133,11 +133,7 @@ type GuardedFetchInternalOptions = GuardedFetchOptions & {
 
 type GuardedFetchConfiguredLocalOriginOptions = GuardedFetchOptions & {
   configuredLocalOriginBaseUrl: string;
-  /**
-   * Let the exact configured origin's trusted hostname resolve into the
-   * rootless-Podman host gateway link-local address (169.254.1.2).
-   * No effect on other origins, redirects, or cloud metadata.
-   */
+  /** Check the exact configured Podman origin's host-only link-local exception. */
   allowPodmanHostGatewayLinkLocal?: boolean;
 };
 
@@ -755,6 +751,11 @@ async function fetchWithSsrFGuardInternal(
           hostnameAllowlist: params.retainAuthorizationRedirectHostnameAllowlist,
         });
         const crossOrigin = nextParsedUrl.origin !== parsedUrl.origin;
+        if (crossOrigin && hasTrustedHostPodmanGatewayLinkLocalExemption(policyForUrl)) {
+          throw new SsrFBlockedError(
+            "Blocked cross-origin redirect from configured Podman host gateway",
+          );
+        }
         const methodRedirectInit = rewriteRedirectInit({
           init: currentInit,
           status: response.status,

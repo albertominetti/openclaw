@@ -402,28 +402,13 @@ function isExplicitLoopbackHostname(hostname: string): boolean {
   );
 }
 
-/** Cloud metadata endpoints that must stay blocked even under a gateway exemption. */
+// These link-local metadata services remain forbidden under the Podman grant.
 const PODMAN_GATEWAY_BLOCKED_LINK_LOCAL_ADDRESSES = new Set([
+  "169.254.0.23",
   "169.254.169.254",
-  "100.100.100.200",
-  "fd00:ec2::254",
+  "169.254.170.2",
+  "169.254.170.23",
 ]);
-
-function isHostExemptPodmanGatewayLinkLocalAddress(address: string): boolean {
-  // Only canonical IPv4 link-local literals qualify. Mapped/embedded IPv6 and
-  // NAT64 forms stay blocked as rebinding vectors, and well-known cloud
-  // metadata endpoints stay blocked even when they sit inside 169.254.0.0/16.
-  if (PODMAN_GATEWAY_BLOCKED_LINK_LOCAL_ADDRESSES.has(address.toLowerCase())) {
-    return false;
-  }
-  if (!isCanonicalDottedDecimalIPv4(address)) {
-    return false;
-  }
-  if (isCloudMetadataIpAddress(address)) {
-    return false;
-  }
-  return isLinkLocalIpAddress(address);
-}
 
 function assertAllowedTrustedHostnameResolvedAddressesOrThrow(
   results: readonly LookupAddress[],
@@ -439,10 +424,9 @@ function assertAllowedTrustedHostnameResolvedAddressesOrThrow(
       (!isLoopbackAllowed && isLoopbackIpAddressIncludingEmbeddedIpv4(entry.address)) ||
       isBlockedTrustedResolvedIpv6Address(entry.address) ||
       (isLinkLocalIpAddress(entry.address) &&
-        !(
-          isPodmanGatewayLinkLocalAllowed &&
-          isHostExemptPodmanGatewayLinkLocalAddress(entry.address)
-        )) ||
+        (!isPodmanGatewayLinkLocalAllowed ||
+          !isCanonicalDottedDecimalIPv4(entry.address) ||
+          PODMAN_GATEWAY_BLOCKED_LINK_LOCAL_ADDRESSES.has(entry.address))) ||
       isCloudMetadataIpAddress(entry.address)
     ) {
       throw new SsrFBlockedError(BLOCKED_RESOLVED_IP_MESSAGE);
