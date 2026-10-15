@@ -147,6 +147,7 @@ describe("Ollama Podman host through the real SSRF and HTTP boundary", () => {
     ["container credentials", "169.254.170.2", 4],
     ["container identity", "169.254.170.23", 4],
     ["platform metadata", "169.254.0.23", 4],
+    ["Scaleway metadata", "169.254.42.42", 4],
     ["non-link-local metadata", "100.100.100.200", 4],
     ["IPv6 metadata", "fd00:ec2::254", 6],
     ["IPv4-mapped link-local", "::ffff:169.254.1.2", 6],

@@ -405,6 +405,7 @@ function isExplicitLoopbackHostname(hostname: string): boolean {
 // These link-local metadata services remain forbidden under the Podman grant.
 const PODMAN_GATEWAY_BLOCKED_LINK_LOCAL_ADDRESSES = new Set([
   "169.254.0.23",
+  "169.254.42.42",
   "169.254.169.254",
   "169.254.170.2",
   "169.254.170.23",
