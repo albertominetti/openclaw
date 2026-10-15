@@ -3,10 +3,10 @@
 import type { LookupAddress } from "node:dns";
 import { createServer } from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { withGuardedFetchRequestAuthority } from "../../../src/infra/net/fetch-request-authority.js";
-import { acquireTestPortBlock } from "../../../src/test-utils/port-claims.js";
+import { createOllamaEmbeddingProvider } from "../../../extensions/ollama/runtime-api.js";
 import { createDeferred } from "../../../test/helpers/promise.js";
-import { createOllamaEmbeddingProvider } from "./embedding-provider.runtime.js";
+import { acquireTestPortBlock } from "../../test-utils/port-claims.js";
+import { withGuardedFetchRequestAuthority } from "./fetch-request-authority.js";
 
 const fixture = vi.hoisted(() => ({
   lookup: async (_hostname: string): Promise<LookupAddress[]> => [
@@ -24,8 +24,8 @@ vi.mock("node:dns/promises", async (importOriginal) => ({
   lookup: (hostname: string) => fixture.lookup(hostname),
 }));
 
-vi.mock("../../../src/infra/net/runtime-fetch.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../../src/infra/net/runtime-fetch.js")>();
+vi.mock("./runtime-fetch.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./runtime-fetch.js")>();
   return {
     ...actual,
     fetchWithRuntimeDispatcher: async (
