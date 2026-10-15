@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createOllamaEmbeddingProvider } from "../../../extensions/ollama/runtime-api.js";
 import { createDeferred } from "../../../test/helpers/promise.js";
 import { acquireTestPortBlock } from "../../test-utils/port-claims.js";
+import { readResponseWithLimit } from "../http-response-body.js";
 import { withGuardedFetchRequestAuthority } from "./fetch-request-authority.js";
 
 const fixture = vi.hoisted(() => ({
@@ -62,7 +63,7 @@ const server = createServer((request, response) => {
         body,
       });
       response.writeHead(upstream.status, { "Content-Type": "application/json" });
-      response.end(await upstream.text());
+      response.end(await readResponseWithLimit(upstream, 1024 * 1024));
     } else {
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ embeddings: [[3, 4]] }));
