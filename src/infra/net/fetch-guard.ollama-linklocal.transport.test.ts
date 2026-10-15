@@ -200,7 +200,7 @@ describe("Ollama Podman host through the real SSRF and HTTP boundary", () => {
   );
 
   it("rejects authority closed while DNS is pending before any HTTP attempt", async () => {
-    const lookupStarted = createDeferred<void>();
+    const lookupStarted = createDeferred();
     const resolved = createDeferred<LookupAddress[]>();
     fixture.lookup = async () => {
       lookupStarted.resolve();
