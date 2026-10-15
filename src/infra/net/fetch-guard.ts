@@ -5,10 +5,7 @@ import type { Dispatcher } from "undici";
 import { logWarn } from "../../logger.js";
 import { captureEffectAuthority } from "../../shared/effect-authority.js";
 import { buildTimeoutAbortSignal } from "../../utils/fetch-timeout.js";
-import {
-  normalizeHeadersInitForFetch,
-  normalizeRequestInitHeadersForFetch,
-} from "../fetch-headers.js";
+import { normalizeRequestInitHeadersForFetch } from "../fetch-headers.js";
 import { cancelUnreadResponseBody } from "../http-body.js";
 import {
   resolveConfiguredLocalOriginLinkLocalHopPolicy,
@@ -20,7 +17,11 @@ import { captureGuardedFetchRequestAuthority } from "./fetch-request-authority.j
 import { responseWithAbortSignal } from "./guarded-body-stream.js";
 import { PinnedDispatcherPool, type PinnedDispatcherLease } from "./pinned-dispatcher-pool.js";
 import { shouldUseEnvHttpProxyForUrl } from "./proxy-env.js";
-import { retainSafeHeadersForCrossOriginRedirect as retainSafeRedirectHeaders } from "./redirect-headers.js";
+import {
+  dropBodyHeaders,
+  restoreRedirectAuthorization,
+  retainSafeHeadersForCrossOriginRedirect as retainSafeRedirectHeaders,
+} from "./redirect-headers.js";
 import {
   fetchWithRuntimeDispatcher,
   isMockedFetch,
@@ -335,32 +336,6 @@ function resolveRetainedAuthorizationForRedirect(params: {
     return undefined;
   }
   return new Headers(normalizedInit.headers).get("authorization") ?? undefined;
-}
-
-function restoreRedirectAuthorization(params: {
-  init?: RequestInit;
-  authorization?: string;
-}): RequestInit | undefined {
-  if (!params.authorization) {
-    return params.init;
-  }
-  const headers = new Headers(params.init?.headers);
-  headers.set("Authorization", params.authorization);
-  return { ...params.init, headers };
-}
-
-function dropBodyHeaders(headers?: HeadersInit): HeadersInit | undefined {
-  if (!headers) {
-    return headers;
-  }
-  const nextHeaders = new Headers(normalizeHeadersInitForFetch(headers));
-  nextHeaders.delete("content-encoding");
-  nextHeaders.delete("content-language");
-  nextHeaders.delete("content-length");
-  nextHeaders.delete("content-location");
-  nextHeaders.delete("content-type");
-  nextHeaders.delete("transfer-encoding");
-  return nextHeaders;
 }
 
 function rewriteRedirectInit(params: {
